@@ -1,48 +1,58 @@
-const fs = require("fs");
-const path = require("path");
+const { PrismaClient } = require("@prisma/client");
 const { exportToCSV } = require("../utils/csvExporter");
 const { downloadAndDelete } = require("../utils/fileHandler");
 
-const ordersFile = path.join(__dirname, "../data/orders.json");
+const prisma = new PrismaClient();
 
-const loadFilteredOrders = (req) => {
+const loadFilteredOrders = async (req) => {
   const { minWorth, maxWorth } = req;
   console.log(minWorth, maxWorth);
-  let orders = JSON.parse(fs.readFileSync(ordersFile));
-
-  if (minWorth) {
-    orders = orders.filter((o) => o.orderWorth >= parseFloat(minWorth));
+  
+  let whereClause = {};
+  
+  if (minWorth || maxWorth) {
+    whereClause.orderWorth = {};
+    if (minWorth) whereClause.orderWorth.gte = parseFloat(minWorth);
+    if (maxWorth) whereClause.orderWorth.lte = parseFloat(maxWorth);
   }
-  if (maxWorth) {
-    orders = orders.filter((o) => o.orderWorth <= parseFloat(maxWorth));
-  }
 
-  return orders;
+  return await prisma.order.findMany({ where: whereClause });
 };
 
-const getAllOrders = (req, res) => {
-  const orders = loadFilteredOrders(req.query);
-  res.json(orders);
+const getAllOrders = async (req, res) => {
+  try {
+    const orders = await loadFilteredOrders(req.query);
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching orders", error: error.message });
+  }
 };
 
 const getOrderById = async (req, res) => {
-  const orders = loadFilteredOrders(req.query);
+  try {
+    const order = await prisma.order.findUnique({
+      where: { orderID: req.params.id }
+    });
 
-  const order = orders.find((o) => o.orderID === req.params.id);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
 
-  if (!order) {
-    return res.status(404).json({ message: "Order not found" });
+    const csvPath = await exportToCSV([order], `order-${order.orderID}`);
+    downloadAndDelete(res, csvPath);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching order", error: error.message });
   }
-
-  const csvPath = await exportToCSV([order], `order-${order.orderID}`);
-  downloadAndDelete(res, csvPath);
 };
 
 const downloadOrdersCSV = async (req, res) => {
-  const orders = loadFilteredOrders(req.query);
-
-  const csvPath = await exportToCSV(orders);
-  downloadAndDelete(res, csvPath);
+  try {
+    const orders = await loadFilteredOrders(req.query);
+    const csvPath = await exportToCSV(orders);
+    downloadAndDelete(res, csvPath);
+  } catch (error) {
+    res.status(500).json({ message: "Error downloading orders", error: error.message });
+  }
 };
 
 module.exports = {

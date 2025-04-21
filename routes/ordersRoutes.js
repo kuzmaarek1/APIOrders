@@ -11,6 +11,6 @@ router.use(auth);
 
 router.get("/", getAllOrders);
 router.get("/csv", downloadOrdersCSV);
-router.get("/:id", getOrderById);
+router.get("/csv/:id", getOrderById);
 
 module.exports = router;

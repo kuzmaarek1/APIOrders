@@ -1,10 +1,8 @@
 const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
+const { PrismaClient } = require("@prisma/client");
 require("dotenv").config();
 
-const ordersFile = path.join(__dirname, "../data/orders.json");
-
+const prisma = new PrismaClient();
 const DOMAIN = process.env.DOMAIN;
 const SEARCH_URL = `${DOMAIN}/api/admin/v5/orders/orders/search`;
 //const ORDER_URL = (id) => `${DOMAIN}/api/admin/v5/orders/orders/${id}`;
@@ -32,8 +30,6 @@ const fetchOrdersFromIdoSell = async () => {
       return;
     }
 
-    const fullOrders = [];
-
     for (const result of results) {
       const orderId = result.orderId;
       const products = result.orderDetails.productsResults || [];
@@ -49,13 +45,14 @@ const fetchOrdersFromIdoSell = async () => {
         orderWorth: worth,
       };
 
-      fullOrders.push(formattedOrder);
+      await prisma.order.upsert({
+        where: { orderID: orderId },
+        update: formattedOrder,
+        create: formattedOrder,
+      });
     }
 
-    fs.writeFileSync(ordersFile, JSON.stringify(fullOrders, null, 2));
-    console.log(`${fullOrders.length} orders saved to orders.json.`);
-    console.log(fullOrders);
-    console.log(fullOrders[0].products);
+    console.log(`${results.length} orders saved to database.`);
   } catch (err) {
     if (err.response) {
       console.error("API error:", err.response.status, err.response.data);
