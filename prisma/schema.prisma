@@ -14,3 +14,9 @@ model Order {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 } 
+
+model FunctionCall {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  lastRun   DateTime @default(now())
+}
